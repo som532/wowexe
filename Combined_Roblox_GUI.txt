@@ -1,0 +1,1223 @@
+-- Combined Roblox GUI
+-- Tabs: EXECUTOR / BLACK GUI / ADMIN PANEL
+-- The black player scanner is a separate ScreenGui and can be moved independently.
+-- Intended for use only in an environment/game you own or are authorized to test.
+
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+local LocalPlayer = Players.LocalPlayer
+
+-- Clean up old copies
+for _, guiName in ipairs({"SimpleExecutor", "LBG"}) do
+    local old = CoreGui:FindFirstChild(guiName)
+    if old then old:Destroy() end
+end
+
+local oldAdmin = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
+if oldAdmin then
+    local old = oldAdmin:FindFirstChild("MyYieldGui")
+    if old then old:Destroy() end
+end
+
+-- ============================================================
+-- MAIN WINDOW AND TOP-LEVEL TABS
+-- ============================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SimpleExecutor"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = CoreGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 480, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -240, 0.5, -175)
+MainFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+MainFrame.BorderSizePixel = 1
+MainFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, 0, 0, 30)
+TitleLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Text = "Executor"
+TitleLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+TitleLabel.Font = Enum.Font.Code
+TitleLabel.TextSize = 16
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.BorderSizePixel = 0
+TitleLabel.Parent = MainFrame
+
+local TitlePadding = Instance.new("UIPadding")
+TitlePadding.PaddingLeft = UDim.new(0, 10)
+TitlePadding.Parent = TitleLabel
+
+local TitleLine = Instance.new("Frame")
+TitleLine.Size = UDim2.new(1, 0, 0, 1)
+TitleLine.Position = UDim2.new(0, 0, 0, 30)
+TitleLine.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+TitleLine.BorderSizePixel = 0
+TitleLine.Parent = MainFrame
+
+local TabFrame = Instance.new("Frame")
+TabFrame.Size = UDim2.new(1, 0, 0, 30)
+TabFrame.Position = UDim2.new(0, 0, 0, 31)
+TabFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TabFrame.BorderSizePixel = 0
+TabFrame.Parent = MainFrame
+
+local function makeTopTab(name, text, xScale, widthScale)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Size = UDim2.new(widthScale, 0, 1, 0)
+    button.Position = UDim2.new(xScale, 0, 0, 0)
+    button.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
+    button.Text = text
+    button.TextColor3 = Color3.fromRGB(0, 0, 0)
+    button.Font = Enum.Font.Code
+    button.TextSize = 12
+    button.BorderSizePixel = 1
+    button.BorderColor3 = Color3.fromRGB(0, 0, 0)
+    button.Parent = TabFrame
+    return button
+end
+
+local ExecutorTab = makeTopTab("ExecutorTab", "EXECUTOR", 0, 1 / 3)
+local BlackTab = makeTopTab("BlackTab", "BLACK GUI", 1 / 3, 1 / 3)
+local AdminTab = makeTopTab("AdminTab", "ADMIN PANEL", 2 / 3, 1 / 3)
+
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Size = UDim2.new(1, 0, 1, -61)
+ContentFrame.Position = UDim2.new(0, 0, 0, 61)
+ContentFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ContentFrame.BorderSizePixel = 0
+ContentFrame.Parent = MainFrame
+
+local function makePage(name)
+    local page = Instance.new("Frame")
+    page.Name = name
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    page.BorderSizePixel = 0
+    page.Visible = false
+    page.Parent = ContentFrame
+    return page
+end
+
+local ExecutorPage = makePage("ExecutorPage")
+local BlackPage = makePage("BlackPage")
+local AdminPage = makePage("AdminPage")
+ExecutorPage.Visible = true
+
+local function selectTopTab(which)
+    ExecutorPage.Visible = which == "executor"
+    BlackPage.Visible = which == "black"
+    AdminPage.Visible = which == "admin"
+    ExecutorTab.BackgroundColor3 = which == "executor" and Color3.fromRGB(220, 220, 220) or Color3.fromRGB(255, 255, 255)
+    BlackTab.BackgroundColor3 = which == "black" and Color3.fromRGB(220, 220, 220) or Color3.fromRGB(255, 255, 255)
+    AdminTab.BackgroundColor3 = which == "admin" and Color3.fromRGB(220, 220, 220) or Color3.fromRGB(255, 255, 255)
+end
+
+-- ============================================================
+-- EXECUTOR TAB: CODE EDITOR + SCRIPT SEARCH
+-- ============================================================
+local InnerTabs = Instance.new("Frame")
+InnerTabs.Size = UDim2.new(1, 0, 0, 25)
+InnerTabs.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+InnerTabs.BorderSizePixel = 0
+InnerTabs.Parent = ExecutorPage
+
+local CodeTab = Instance.new("TextButton")
+CodeTab.Size = UDim2.new(0.5, 0, 1, 0)
+CodeTab.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
+CodeTab.Text = "CODE"
+CodeTab.TextColor3 = Color3.fromRGB(0, 0, 0)
+CodeTab.Font = Enum.Font.Code
+CodeTab.TextSize = 12
+CodeTab.BorderSizePixel = 1
+CodeTab.BorderColor3 = Color3.fromRGB(0, 0, 0)
+CodeTab.Parent = InnerTabs
+
+local SearchTab = Instance.new("TextButton")
+SearchTab.Size = UDim2.new(0.5, 0, 1, 0)
+SearchTab.Position = UDim2.new(0.5, 0, 0, 0)
+SearchTab.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SearchTab.Text = "SEARCH"
+SearchTab.TextColor3 = Color3.fromRGB(0, 0, 0)
+SearchTab.Font = Enum.Font.Code
+SearchTab.TextSize = 12
+SearchTab.BorderSizePixel = 1
+SearchTab.BorderColor3 = Color3.fromRGB(0, 0, 0)
+SearchTab.Parent = InnerTabs
+
+local CodePage = Instance.new("Frame")
+CodePage.Size = UDim2.new(1, 0, 1, -25)
+CodePage.Position = UDim2.new(0, 0, 0, 25)
+CodePage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+CodePage.BorderSizePixel = 0
+CodePage.Parent = ExecutorPage
+
+local TextBox = Instance.new("TextBox")
+TextBox.Name = "CodeBox"
+TextBox.Size = UDim2.new(1, -20, 1, -55)
+TextBox.Position = UDim2.new(0, 10, 0, 5)
+TextBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TextBox.TextColor3 = Color3.fromRGB(0, 0, 0)
+TextBox.Text = ""
+TextBox.PlaceholderText = "Paste code here..."
+TextBox.ClearTextOnFocus = false
+TextBox.MultiLine = true
+TextBox.Font = Enum.Font.Code
+TextBox.TextSize = 14
+TextBox.TextXAlignment = Enum.TextXAlignment.Left
+TextBox.TextYAlignment = Enum.TextYAlignment.Top
+TextBox.BorderSizePixel = 1
+TextBox.BorderColor3 = Color3.fromRGB(0, 0, 0)
+TextBox.Parent = CodePage
+
+local TextPadding = Instance.new("UIPadding")
+TextPadding.PaddingLeft = UDim.new(0, 6)
+TextPadding.PaddingTop = UDim.new(0, 6)
+TextPadding.Parent = TextBox
+
+local ExecuteButton = Instance.new("TextButton")
+ExecuteButton.Size = UDim2.new(0.5, -15, 0, 35)
+ExecuteButton.Position = UDim2.new(0, 10, 1, -42)
+ExecuteButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ExecuteButton.Text = "EXECUTE"
+ExecuteButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+ExecuteButton.Font = Enum.Font.Code
+ExecuteButton.TextSize = 15
+ExecuteButton.BorderSizePixel = 1
+ExecuteButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
+ExecuteButton.Parent = CodePage
+
+local ClearButton = Instance.new("TextButton")
+ClearButton.Size = UDim2.new(0.5, -15, 0, 35)
+ClearButton.Position = UDim2.new(0.5, 5, 1, -42)
+ClearButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ClearButton.Text = "CLEAR"
+ClearButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+ClearButton.Font = Enum.Font.Code
+ClearButton.TextSize = 15
+ClearButton.BorderSizePixel = 1
+ClearButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
+ClearButton.Parent = CodePage
+
+local SearchPage = Instance.new("Frame")
+SearchPage.Size = UDim2.new(1, 0, 1, -25)
+SearchPage.Position = UDim2.new(0, 0, 0, 25)
+SearchPage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SearchPage.BorderSizePixel = 0
+SearchPage.Visible = false
+SearchPage.Parent = ExecutorPage
+
+local SearchBox = Instance.new("TextBox")
+SearchBox.Size = UDim2.new(1, -70, 0, 32)
+SearchBox.Position = UDim2.new(0, 10, 0, 7)
+SearchBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SearchBox.TextColor3 = Color3.fromRGB(0, 0, 0)
+SearchBox.PlaceholderText = "Script name..."
+SearchBox.Text = ""
+SearchBox.ClearTextOnFocus = false
+SearchBox.Font = Enum.Font.Code
+SearchBox.TextSize = 13
+SearchBox.TextXAlignment = Enum.TextXAlignment.Left
+SearchBox.BorderSizePixel = 1
+SearchBox.BorderColor3 = Color3.fromRGB(0, 0, 0)
+SearchBox.Parent = SearchPage
+
+local SearchPadding = Instance.new("UIPadding")
+SearchPadding.PaddingLeft = UDim.new(0, 6)
+SearchPadding.Parent = SearchBox
+
+local SearchButton = Instance.new("TextButton")
+SearchButton.Size = UDim2.new(0, 50, 0, 32)
+SearchButton.Position = UDim2.new(1, -60, 0, 7)
+SearchButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+SearchButton.Text = "FIND"
+SearchButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+SearchButton.Font = Enum.Font.Code
+SearchButton.TextSize = 13
+SearchButton.BorderSizePixel = 1
+SearchButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
+SearchButton.Parent = SearchPage
+
+local ResultsFrame = Instance.new("ScrollingFrame")
+ResultsFrame.Size = UDim2.new(1, -20, 1, -50)
+ResultsFrame.Position = UDim2.new(0, 10, 0, 45)
+ResultsFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ResultsFrame.BorderSizePixel = 1
+ResultsFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+ResultsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ResultsFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ResultsFrame.ScrollBarThickness = 5
+ResultsFrame.Parent = SearchPage
+
+local ResultsLayout = Instance.new("UIListLayout")
+ResultsLayout.Padding = UDim.new(0, 4)
+ResultsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ResultsLayout.Parent = ResultsFrame
+
+CodeTab.MouseButton1Click:Connect(function()
+    CodePage.Visible = true
+    SearchPage.Visible = false
+    CodeTab.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
+    SearchTab.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+end)
+
+SearchTab.MouseButton1Click:Connect(function()
+    CodePage.Visible = false
+    SearchPage.Visible = true
+    CodeTab.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    SearchTab.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
+end)
+
+local function executeCode(code)
+    if type(code) ~= "string" or code == "" then return end
+    if type(loadstring) ~= "function" then
+        warn("loadstring is unavailable in this environment.")
+        return
+    end
+    local compileFunction, compileError = loadstring(code)
+    if not compileFunction then
+        warn(tostring(compileError))
+        return
+    end
+    local ok, runError = pcall(compileFunction)
+    if not ok then warn(tostring(runError)) end
+end
+
+ExecuteButton.MouseButton1Click:Connect(function()
+    executeCode(TextBox.Text)
+end)
+
+ClearButton.MouseButton1Click:Connect(function()
+    TextBox.Text = ""
+end)
+
+-- Action pop-up for search results
+local ActionWindow = Instance.new("Frame")
+ActionWindow.Name = "ActionWindow"
+ActionWindow.Size = UDim2.new(0, 300, 0, 180)
+ActionWindow.Position = UDim2.new(0.5, -150, 0.5, -90)
+ActionWindow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ActionWindow.BorderSizePixel = 1
+ActionWindow.BorderColor3 = Color3.fromRGB(0, 0, 0)
+ActionWindow.Visible = false
+ActionWindow.Active = true
+ActionWindow.Draggable = true
+ActionWindow.ZIndex = 100
+ActionWindow.Parent = ScreenGui
+
+local ActionTitle = Instance.new("TextLabel")
+ActionTitle.Size = UDim2.new(1, -40, 0, 25)
+ActionTitle.Position = UDim2.new(0, 5, 0, 0)
+ActionTitle.BackgroundTransparency = 1
+ActionTitle.Text = ""
+ActionTitle.TextColor3 = Color3.fromRGB(0, 0, 0)
+ActionTitle.Font = Enum.Font.Code
+ActionTitle.TextSize = 13
+ActionTitle.TextXAlignment = Enum.TextXAlignment.Left
+ActionTitle.TextTruncate = Enum.TextTruncate.AtEnd
+ActionTitle.ZIndex = 101
+ActionTitle.Parent = ActionWindow
+
+local ActionClose = Instance.new("TextButton")
+ActionClose.Size = UDim2.new(0, 25, 0, 25)
+ActionClose.Position = UDim2.new(1, -30, 0, 0)
+ActionClose.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ActionClose.Text = "X"
+ActionClose.TextColor3 = Color3.fromRGB(0, 0, 0)
+ActionClose.Font = Enum.Font.Code
+ActionClose.TextSize = 14
+ActionClose.BorderSizePixel = 1
+ActionClose.BorderColor3 = Color3.fromRGB(0, 0, 0)
+ActionClose.ZIndex = 101
+ActionClose.Parent = ActionWindow
+
+local ActionLine = Instance.new("Frame")
+ActionLine.Size = UDim2.new(1, 0, 0, 1)
+ActionLine.Position = UDim2.new(0, 0, 0, 25)
+ActionLine.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+ActionLine.BorderSizePixel = 0
+ActionLine.ZIndex = 101
+ActionLine.Parent = ActionWindow
+
+local ActionInfo = Instance.new("TextLabel")
+ActionInfo.Size = UDim2.new(1, -10, 0, 20)
+ActionInfo.Position = UDim2.new(0, 5, 0, 30)
+ActionInfo.BackgroundTransparency = 1
+ActionInfo.Text = ""
+ActionInfo.TextColor3 = Color3.fromRGB(100, 100, 100)
+ActionInfo.Font = Enum.Font.Code
+ActionInfo.TextSize = 11
+ActionInfo.TextXAlignment = Enum.TextXAlignment.Left
+ActionInfo.ZIndex = 101
+ActionInfo.Parent = ActionWindow
+
+local currentScript = ""
+local function makeActionButton(text, posX, callback)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0, 90, 0, 45)
+    button.Position = UDim2.new(0, posX, 1, -60)
+    button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    button.Text = text
+    button.TextColor3 = Color3.fromRGB(0, 0, 0)
+    button.Font = Enum.Font.Code
+    button.TextSize = 13
+    button.BorderSizePixel = 1
+    button.BorderColor3 = Color3.fromRGB(0, 0, 0)
+    button.ZIndex = 101
+    button.Parent = ActionWindow
+    button.MouseButton1Click:Connect(callback)
+    return button
+end
+
+makeActionButton("EXECUTE", 10, function()
+    if currentScript ~= "" then
+        executeCode(currentScript)
+        ActionWindow.Visible = false
+    end
+end)
+
+local CopyButton
+CopyButton = makeActionButton("COPY", 105, function()
+    if currentScript == "" then return end
+    if type(setclipboard) == "function" then
+        setclipboard(currentScript)
+        CopyButton.Text = "COPIED!"
+        task.delay(1, function()
+            if CopyButton and CopyButton.Parent then CopyButton.Text = "COPY" end
+        end)
+    else
+        warn("setclipboard is not supported in this environment.")
+    end
+end)
+
+makeActionButton("VIEW", 200, function()
+    if currentScript ~= "" then
+        TextBox.Text = currentScript
+        selectTopTab("executor")
+        CodePage.Visible = true
+        SearchPage.Visible = false
+        CodeTab.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
+        SearchTab.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        ActionWindow.Visible = false
+    end
+end)
+
+ActionClose.MouseButton1Click:Connect(function()
+    ActionWindow.Visible = false
+end)
+
+local function clearResults()
+    for _, child in ipairs(ResultsFrame:GetChildren()) do
+        if child:IsA("GuiObject") and not child:IsA("UIListLayout") then
+            child:Destroy()
+        end
+    end
+end
+
+local function addResult(scriptData)
+    local card = Instance.new("TextButton")
+    card.Size = UDim2.new(1, -8, 0, 50)
+    card.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    card.Text = ""
+    card.BorderSizePixel = 1
+    card.BorderColor3 = Color3.fromRGB(0, 0, 0)
+    card.Parent = ResultsFrame
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -10, 0, 20)
+    title.Position = UDim2.new(0, 5, 0, 3)
+    title.BackgroundTransparency = 1
+    title.Text = scriptData.title or "Без названия"
+    title.TextColor3 = Color3.fromRGB(0, 0, 0)
+    title.Font = Enum.Font.Code
+    title.TextSize = 12
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.TextTruncate = Enum.TextTruncate.AtEnd
+    title.Parent = card
+
+    local gameName = (scriptData.game and scriptData.game.name) or "Unknown"
+    local info = Instance.new("TextLabel")
+    info.Size = UDim2.new(1, -10, 0, 15)
+    info.Position = UDim2.new(0, 5, 0, 25)
+    info.BackgroundTransparency = 1
+    info.Text = "Game: " .. tostring(gameName) .. " | Views: " .. tostring(scriptData.views or 0)
+    info.TextColor3 = Color3.fromRGB(100, 100, 100)
+    info.Font = Enum.Font.Code
+    info.TextSize = 10
+    info.TextXAlignment = Enum.TextXAlignment.Left
+    info.TextTruncate = Enum.TextTruncate.AtEnd
+    info.Parent = card
+
+    card.MouseButton1Click:Connect(function()
+        if type(scriptData.script) == "string" and scriptData.script ~= "" then
+            currentScript = scriptData.script
+            ActionTitle.Text = scriptData.title or "Без названия"
+            ActionInfo.Text = "Game: " .. tostring(gameName) .. " | Views: " .. tostring(scriptData.views or 0)
+            ActionWindow.Visible = true
+        else
+            warn("The API did not return source code for this result.")
+        end
+    end)
+end
+
+local searchBusy = false
+local function searchScripts(query)
+    query = tostring(query or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    clearResults()
+    if query == "" or searchBusy then return end
+
+    searchBusy = true
+    SearchButton.Text = "..."
+    SearchButton.Active = false
+    SearchBox.PlaceholderText = "Поиск..."
+
+    local url = "https://scriptblox.com/api/script/search?q=" .. HttpService:UrlEncode(query) .. "&mode=free&page=1"
+    local success, response = pcall(function()
+        return game:HttpGet(url)
+    end)
+
+    if not success then
+        warn("Search request failed: " .. tostring(response))
+        SearchButton.Text = "FIND"
+        SearchButton.Active = true
+        SearchBox.PlaceholderText = "Script name..."
+        searchBusy = false
+        return
+    end
+
+    local decodeOK, data = pcall(function()
+        return HttpService:JSONDecode(response)
+    end)
+    if not decodeOK or type(data) ~= "table" or type(data.result) ~= "table" or type(data.result.scripts) ~= "table" then
+        warn("Could not parse the ScriptBlox response.")
+        SearchButton.Text = "FIND"
+        SearchButton.Active = true
+        SearchBox.PlaceholderText = "Script name..."
+        searchBusy = false
+        return
+    end
+
+    for _, scriptData in ipairs(data.result.scripts) do
+        addResult(scriptData)
+    end
+    SearchButton.Text = "FIND"
+    SearchButton.Active = true
+    SearchBox.PlaceholderText = "Script name..."
+    searchBusy = false
+end
+
+SearchButton.MouseButton1Click:Connect(function()
+    searchScripts(SearchBox.Text)
+end)
+SearchBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then searchScripts(SearchBox.Text) end
+end)
+
+-- ============================================================
+-- BLACK GUI: INDEPENDENT PLAYER SCANNER (ORIGINAL SCALE SIZE)
+-- ============================================================
+local ScannerGui = Instance.new("ScreenGui")
+ScannerGui.Name = "LBG"
+ScannerGui.ResetOnSpawn = false
+ScannerGui.IgnoreGuiInset = true
+ScannerGui.Enabled = false
+ScannerGui.Parent = CoreGui
+
+local ScannerFrame = Instance.new("Frame")
+ScannerFrame.Name = "ScannerFrame"
+ScannerFrame.Size = UDim2.new(0.5, 0, 0.6, 0)
+ScannerFrame.Position = UDim2.new(0.02, 0, 0.2, 0)
+ScannerFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+ScannerFrame.BorderSizePixel = 0
+ScannerFrame.Active = true
+ScannerFrame.Parent = ScannerGui
+
+local ScannerBar = Instance.new("Frame")
+ScannerBar.Size = UDim2.new(1, 0, 0, 28)
+ScannerBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+ScannerBar.BorderSizePixel = 0
+ScannerBar.Active = true
+ScannerBar.Parent = ScannerFrame
+
+local ScannerTitle = Instance.new("TextLabel")
+ScannerTitle.Size = UDim2.new(1, -30, 1, 0)
+ScannerTitle.BackgroundTransparency = 1
+ScannerTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+ScannerTitle.Font = Enum.Font.Code
+ScannerTitle.TextSize = 14
+ScannerTitle.TextXAlignment = Enum.TextXAlignment.Left
+ScannerTitle.Text = "  Скан игроков"
+ScannerTitle.Parent = ScannerBar
+
+local ScannerClose = Instance.new("TextButton")
+ScannerClose.Size = UDim2.new(0, 26, 0, 24)
+ScannerClose.Position = UDim2.new(1, -27, 0, 2)
+ScannerClose.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ScannerClose.BorderSizePixel = 0
+ScannerClose.Text = "X"
+ScannerClose.TextColor3 = Color3.fromRGB(255, 255, 255)
+ScannerClose.Font = Enum.Font.Code
+ScannerClose.TextSize = 13
+ScannerClose.Parent = ScannerBar
+ScannerClose.MouseButton1Click:Connect(function()
+    ScannerGui.Enabled = false
+end)
+
+local ScannerList = Instance.new("ScrollingFrame")
+ScannerList.Name = "PlayerList"
+ScannerList.Size = UDim2.new(1, -10, 1, -38)
+ScannerList.Position = UDim2.new(0, 5, 0, 33)
+ScannerList.BackgroundTransparency = 1
+ScannerList.BorderSizePixel = 0
+ScannerList.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScannerList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+ScannerList.ScrollBarThickness = 4
+ScannerList.Active = true
+ScannerList.Parent = ScannerFrame
+
+local ScannerLayout = Instance.new("UIListLayout")
+ScannerLayout.Padding = UDim.new(0, 10)
+ScannerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ScannerLayout.Parent = ScannerList
+
+local Green = Color3.fromRGB(0, 255, 0)
+local playerRows = {}
+
+local function getAccountCreationDate(userId)
+    local ok, result = pcall(function()
+        local response = game:HttpGet("https://users.roblox.com/v1/users/" .. tostring(userId))
+        return HttpService:JSONDecode(response)
+    end)
+    if ok and type(result) == "table" and type(result.created) == "string" then
+        return result.created:sub(1, 10)
+    end
+    return "?"
+end
+
+local function addPlayerRow(player)
+    if playerRows[player.UserId] then return end
+
+    local card = Instance.new("Frame")
+    card.Name = "Player_" .. tostring(player.UserId)
+    card.Size = UDim2.new(1, -8, 0, 70)
+    card.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    card.BorderSizePixel = 0
+    card.Parent = ScannerList
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0, 22)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.Font = Enum.Font.Code
+    nameLabel.TextSize = 14
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Text = "  " .. player.Name
+    nameLabel.Parent = card
+
+    local idLabel = Instance.new("TextLabel")
+    idLabel.Size = UDim2.new(1, 0, 0, 22)
+    idLabel.Position = UDim2.new(0, 0, 0, 22)
+    idLabel.BackgroundTransparency = 1
+    idLabel.TextColor3 = Green
+    idLabel.Font = Enum.Font.Code
+    idLabel.TextSize = 13
+    idLabel.TextXAlignment = Enum.TextXAlignment.Left
+    idLabel.Text = "  " .. tostring(player.UserId)
+    idLabel.Parent = card
+
+    local dateLabel = Instance.new("TextLabel")
+    dateLabel.Size = UDim2.new(1, 0, 0, 22)
+    dateLabel.Position = UDim2.new(0, 0, 0, 44)
+    dateLabel.BackgroundTransparency = 1
+    dateLabel.TextColor3 = Green
+    dateLabel.Font = Enum.Font.Code
+    dateLabel.TextSize = 13
+    dateLabel.TextXAlignment = Enum.TextXAlignment.Left
+    dateLabel.Text = "  ..."
+    dateLabel.Parent = card
+
+    playerRows[player.UserId] = {Frame = card, DateLabel = dateLabel}
+    task.spawn(function()
+        local dateText = getAccountCreationDate(player.UserId)
+        local row = playerRows[player.UserId]
+        if row and row.DateLabel and row.DateLabel.Parent then
+            row.DateLabel.Text = "  " .. dateText
+        end
+    end)
+end
+
+local function removePlayerRow(player)
+    local row = playerRows[player.UserId]
+    if row then
+        if row.Frame then row.Frame:Destroy() end
+        playerRows[player.UserId] = nil
+    end
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+    addPlayerRow(player)
+end
+Players.PlayerAdded:Connect(addPlayerRow)
+Players.PlayerRemoving:Connect(removePlayerRow)
+
+-- Drag only the scanner header; this window is not parented to the executor frame.
+local dragging, dragInput, dragStart, startPosition
+ScannerBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPosition = ScannerFrame.Position
+        dragInput = input
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        ScannerFrame.Position = UDim2.new(
+            startPosition.X.Scale,
+            startPosition.X.Offset + delta.X,
+            startPosition.Y.Scale,
+            startPosition.Y.Offset + delta.Y
+        )
+    end
+end)
+
+local BlackInfo = Instance.new("TextLabel")
+BlackInfo.Size = UDim2.new(1, -20, 0, 60)
+BlackInfo.Position = UDim2.new(0, 10, 0, 15)
+BlackInfo.BackgroundTransparency = 1
+BlackInfo.Text = "BLACK GUI — отдельное окно.\nОно перемещается независимо от Executor."
+BlackInfo.TextColor3 = Color3.fromRGB(0, 0, 0)
+BlackInfo.Font = Enum.Font.Code
+BlackInfo.TextSize = 13
+BlackInfo.TextWrapped = true
+BlackInfo.TextXAlignment = Enum.TextXAlignment.Left
+BlackInfo.Parent = BlackPage
+
+local ToggleScannerButton = Instance.new("TextButton")
+ToggleScannerButton.Size = UDim2.new(1, -20, 0, 36)
+ToggleScannerButton.Position = UDim2.new(0, 10, 0, 85)
+ToggleScannerButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ToggleScannerButton.Text = "OPEN / HIDE BLACK GUI"
+ToggleScannerButton.TextColor3 = Color3.fromRGB(0, 255, 0)
+ToggleScannerButton.Font = Enum.Font.Code
+ToggleScannerButton.TextSize = 13
+ToggleScannerButton.BorderSizePixel = 1
+ToggleScannerButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
+ToggleScannerButton.Parent = BlackPage
+ToggleScannerButton.MouseButton1Click:Connect(function()
+    ScannerGui.Enabled = not ScannerGui.Enabled
+end)
+
+-- ============================================================
+-- ADMIN PANEL: launched only by the third top-level tab button
+-- ============================================================
+local Y = {
+    Commands = {},
+    Aliases = {},
+    LoopConn = nil,
+    FlyConn = nil,
+    FlyParts = nil,
+    Gui = nil,
+}
+_G.MyYield = Y
+
+local TITLE = "Admin panel 0.9"
+local function notify(title, message)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title or TITLE,
+            Text = message or "",
+            Duration = 3,
+        })
+    end)
+end
+Y.Notify = notify
+
+function Y:FindPlayer(query)
+    if not query or query == "" then return nil end
+    query = query:lower()
+
+    if query == "me" then return LocalPlayer end
+    if query == "random" then
+        local list = {}
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                table.insert(list, player)
+            end
+        end
+        if #list == 0 then return nil end
+        return list[math.random(1, #list)]
+    end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Name:lower() == query then return player end
+    end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Name:lower():find(query, 1, true) then return player end
+    end
+    return nil
+end
+
+function Y:Register(name, data)
+    if type(name) ~= "string" or type(data) ~= "table" or type(data.Func) ~= "function" then return end
+    data.Aliases = data.Aliases or {}
+    self.Commands[name:lower()] = data
+    for _, alias in ipairs(data.Aliases) do
+        self.Aliases[alias:lower()] = name:lower()
+    end
+end
+
+function Y:Get(name)
+    name = (name or ""):lower()
+    return self.Commands[name] or self.Commands[self.Aliases[name] or ""]
+end
+
+function Y:Run(input)
+    if not input or input == "" then return end
+    local args = {}
+    for word in input:gmatch("%S+") do table.insert(args, word) end
+    local name = table.remove(args, 1)
+    if not name then return end
+    local low = name:lower()
+
+    if low:sub(1, 2) == "un" and #low > 2 then
+        local base = self:Get(low:sub(3))
+        if base and base.Unfunc then
+            local ok, err = pcall(base.Unfunc, args, base)
+            if not ok then notify("Error", tostring(err)) end
+            return
+        end
+    end
+
+    local command = self:Get(name)
+    if not command then return notify(TITLE, "Unknown: " .. name) end
+    local ok, err = pcall(command.Func, args, command)
+    if not ok then notify("Error", tostring(err)) end
+end
+
+local function buildAdminGui()
+    local playerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    if not playerGui then error("PlayerGui is not available") end
+    local old = playerGui:FindFirstChild("MyYieldGui")
+    if old then old:Destroy() end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "MyYieldGui"
+    gui.ResetOnSpawn = false
+    gui.Parent = playerGui
+
+    local main = Instance.new("Frame")
+    main.Name = "Main"
+    main.Size = UDim2.new(0, 560, 0, 340)
+    main.Position = UDim2.new(0.5, -280, 0.5, -170)
+    main.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    main.BorderSizePixel = 0
+    main.Active = true
+    main.Draggable = true
+    main.Parent = gui
+    Instance.new("UICorner", main).CornerRadius = UDim.new(0, 10)
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 35)
+    title.BackgroundColor3 = Color3.fromRGB(230, 230, 230)
+    title.BorderSizePixel = 0
+    title.Text = "  " .. TITLE
+    title.TextColor3 = Color3.fromRGB(0, 0, 0)
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 16
+    title.Parent = main
+    Instance.new("UICorner", title).CornerRadius = UDim.new(0, 10)
+
+    local close = Instance.new("TextButton")
+    close.Size = UDim2.new(0, 30, 0, 30)
+    close.Position = UDim2.new(1, -35, 0, 3)
+    close.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
+    close.BorderSizePixel = 0
+    close.Text = "X"
+    close.TextColor3 = Color3.fromRGB(255, 255, 255)
+    close.Font = Enum.Font.GothamBold
+    close.TextSize = 14
+    close.Parent = title
+    close.MouseButton1Click:Connect(function() main.Visible = false end)
+
+    local box = Instance.new("TextBox")
+    box.Name = "SearchBox"
+    box.Size = UDim2.new(1, -20, 0, 36)
+    box.Position = UDim2.new(0, 10, 0, 45)
+    box.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+    box.BorderSizePixel = 0
+    box.PlaceholderText = "Type command and press Enter..."
+    box.Text = ""
+    box.TextColor3 = Color3.fromRGB(0, 0, 0)
+    box.PlaceholderColor3 = Color3.fromRGB(120, 120, 120)
+    box.Font = Enum.Font.Gotham
+    box.TextSize = 14
+    box.ClearTextOnFocus = false
+    box.Parent = main
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
+
+    local list = Instance.new("ScrollingFrame")
+    list.Name = "ListFrame"
+    list.Size = UDim2.new(1, -20, 1, -130)
+    list.Position = UDim2.new(0, 10, 0, 90)
+    list.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+    list.BorderSizePixel = 0
+    list.ScrollBarThickness = 5
+    list.CanvasSize = UDim2.new(0, 0, 0, 0)
+    list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    list.Parent = main
+    Instance.new("UICorner", list).CornerRadius = UDim.new(0, 6)
+
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 4)
+    layout.Parent = list
+
+    local status = Instance.new("TextLabel")
+    status.Name = "Status"
+    status.Size = UDim2.new(1, -20, 0, 25)
+    status.Position = UDim2.new(0, 10, 1, -30)
+    status.BackgroundTransparency = 1
+    status.Text = "Found: 0"
+    status.TextColor3 = Color3.fromRGB(0, 0, 0)
+    status.TextXAlignment = Enum.TextXAlignment.Left
+    status.Font = Enum.Font.Gotham
+    status.TextSize = 12
+    status.Parent = main
+
+    return gui, box, list, status
+end
+
+local guiForAdmin
+
+local function refreshAdminList(list, status, query)
+    for _, child in ipairs(list:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    query = (query or ""):lower()
+    local count = 0
+    local sorted = {}
+    for name, data in pairs(Y.Commands) do
+        table.insert(sorted, {Name = name, Data = data})
+    end
+    table.sort(sorted, function(a, b) return a.Name < b.Name end)
+
+    for _, entry in ipairs(sorted) do
+        if query == "" or entry.Name:find(query, 1, true) then
+            count += 1
+            local button = Instance.new("TextButton")
+            button.Size = UDim2.new(1, -12, 0, 34)
+            button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            button.BorderSizePixel = 0
+            button.Text = ""
+            button.Parent = list
+            Instance.new("UICorner", button).CornerRadius = UDim.new(0, 5)
+
+            local stroke = Instance.new("UIStroke")
+            stroke.Color = Color3.fromRGB(200, 200, 200)
+            stroke.Thickness = 1
+            stroke.Parent = button
+
+            local label = Instance.new("TextLabel")
+            label.Size = UDim2.new(1, -16, 1, 0)
+            label.Position = UDim2.new(0, 8, 0, 0)
+            label.BackgroundTransparency = 1
+            label.Text = entry.Name
+            label.TextColor3 = Color3.fromRGB(0, 0, 0)
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.Font = Enum.Font.GothamBold
+            label.TextSize = 14
+            label.Parent = button
+
+            button.MouseButton1Click:Connect(function()
+                local commandBox = guiForAdmin and guiForAdmin:FindFirstChild("Main") and guiForAdmin.Main:FindFirstChild("SearchBox")
+                if commandBox then
+                    commandBox.Text = entry.Name .. " "
+                    commandBox:CaptureFocus()
+                end
+            end)
+        end
+    end
+    status.Text = "Found: " .. tostring(count)
+end
+
+local function initAdminPanel()
+    local existingPlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+    local existing = existingPlayerGui and existingPlayerGui:FindFirstChild("MyYieldGui")
+    if existing then
+        guiForAdmin = existing
+        Y.Gui = existing
+        local main = existing:FindFirstChild("Main")
+        if main then main.Visible = true end
+        return
+    end
+
+    local gui, box, list, status = buildAdminGui()
+    guiForAdmin = gui
+    Y.Gui = gui
+
+    box:GetPropertyChangedSignal("Text"):Connect(function()
+        refreshAdminList(list, status, box.Text)
+    end)
+    box.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local input = box.Text
+            box.Text = ""
+            refreshAdminList(list, status, "")
+            if input ~= "" then Y:Run(input) end
+        end
+    end)
+    refreshAdminList(list, status, "")
+
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode == Enum.KeyCode.RightShift and Y.Gui then
+            local main = Y.Gui:FindFirstChild("Main")
+            if main then
+                main.Visible = not main.Visible
+                if main.Visible then
+                    local commandBox = main:FindFirstChild("SearchBox")
+                    if commandBox then commandBox:CaptureFocus() end
+                end
+            end
+        end
+    end)
+    notify(TITLE, "Loaded")
+end
+
+Y:Register("speed", {
+    Func = function(args)
+        local value = tonumber(args[1])
+        if not value then return notify("Speed", "Enter a number") end
+        local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = value
+            notify("Speed", "Speed: " .. tostring(value))
+        end
+    end,
+})
+
+Y:Register("loopsped", {
+    Aliases = {"ls"},
+    Func = function(args)
+        local value = tonumber(args[1])
+        if not value then return notify("LoopSped", "Enter a number") end
+        if Y.LoopConn then Y.LoopConn:Disconnect() end
+        Y.LoopVal = value
+        Y.LoopConn = RunService.Heartbeat:Connect(function()
+            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.WalkSpeed ~= Y.LoopVal then humanoid.WalkSpeed = Y.LoopVal end
+        end)
+        notify("LoopSped", "Locked: " .. tostring(value))
+    end,
+    Unfunc = function()
+        if Y.LoopConn then Y.LoopConn:Disconnect(); Y.LoopConn = nil end
+        notify("LoopSped", "Disabled")
+    end,
+})
+
+Y:Register("jump", {
+    Func = function(args)
+        local value = tonumber(args[1])
+        if not value then return notify("Jump", "Enter a number") end
+        local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.JumpPower = value
+            notify("Jump", "Jump: " .. tostring(value))
+        end
+    end,
+})
+
+Y:Register("noclip", {
+    Func = function()
+        local character = LocalPlayer.Character
+        if not character then return end
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+        notify("Noclip", "Enabled")
+    end,
+})
+
+Y:Register("fly", {
+    Func = function(args)
+        local speed = tonumber(args[1]) or 50
+        local character = LocalPlayer.Character
+        if not character then return end
+        local root = character:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        if Y.FlyConn then Y.FlyConn:Disconnect(); Y.FlyConn = nil end
+        if Y.FlyParts then
+            for _, part in ipairs(Y.FlyParts) do pcall(function() part:Destroy() end) end
+        end
+
+        local velocity = Instance.new("BodyVelocity")
+        velocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+        velocity.Velocity = Vector3.zero
+        velocity.Parent = root
+
+        local gyro = Instance.new("BodyGyro")
+        gyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+        gyro.P = 1000
+        gyro.Parent = root
+
+        Y.FlyParts = {velocity, gyro}
+        Y.FlyConn = RunService.RenderStepped:Connect(function()
+            local camera = workspace.CurrentCamera
+            if not camera or not velocity.Parent or not gyro.Parent then return end
+            local movement = Vector3.zero
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then movement += camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then movement -= camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then movement -= camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then movement += camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then movement += Vector3.new(0, 1, 0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then movement -= Vector3.new(0, 1, 0) end
+            velocity.Velocity = movement.Magnitude > 0 and movement.Unit * speed or Vector3.zero
+            gyro.CFrame = camera.CFrame
+        end)
+        notify("Fly", "Enabled")
+    end,
+    Unfunc = function()
+        if Y.FlyConn then Y.FlyConn:Disconnect() end
+        if Y.FlyParts then
+            for _, part in ipairs(Y.FlyParts) do pcall(function() part:Destroy() end) end
+        end
+        Y.FlyConn = nil
+        Y.FlyParts = nil
+        notify("Fly", "Disabled")
+    end,
+})
+
+Y:Register("tp", {
+    Aliases = {"teleport"},
+    Func = function(args)
+        local query = table.concat(args, " ")
+        if query == "" then return notify("TP", "Enter player name, random, all or me") end
+        local low = query:lower()
+        if low == "all" then
+            local count = 0
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local targetRoot = player.Character:FindFirstChild("HumanoidRootPart")
+                    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if targetRoot and myRoot then
+                        myRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+                        count += 1
+                        task.wait(0.1)
+                    end
+                end
+            end
+            notify("TP", "Teleported to " .. tostring(count) .. " players")
+            return
+        end
+        local target = Y:FindPlayer(query)
+        if not target then return notify("TP", "Not found: " .. query) end
+        if not target.Character then return notify("TP", target.Name .. " has no character") end
+        local targetRoot = target.Character:FindFirstChild("HumanoidRootPart")
+        local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if targetRoot and myRoot then
+            myRoot.CFrame = targetRoot.CFrame + Vector3.new(0, 3, 0)
+            notify("TP", "To " .. target.Name)
+        end
+    end,
+})
+
+Y:Register("rejoin", {
+    Func = function()
+        game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+    end,
+})
+
+Y:Register("hide", {
+    Func = function()
+        if Y.Gui and Y.Gui:FindFirstChild("Main") then
+            Y.Gui.Main.Visible = false
+            notify(TITLE, "RightShift to show")
+        end
+    end,
+})
+
+Y:Register("dex", {
+    Func = function()
+        local ok, err = pcall(function()
+            if type(loadstring) ~= "function" then error("loadstring is unavailable") end
+            local source = game:HttpGet("https://raw.githubusercontent.com/BaconCheats/Leaked/refs/heads/main/DexPlusPlus.lua")
+            local compiled = loadstring(source)
+            if not compiled then error("Could not compile downloaded source") end
+            compiled()
+        end)
+        if ok then notify("Dex", "Loaded") else notify("Dex", "Failed: " .. tostring(err)) end
+    end,
+})
+
+Y:Register("cobalt", {
+    Func = function()
+        local ok, err = pcall(function()
+            if type(loadstring) ~= "function" then error("loadstring is unavailable") end
+            local source = game:HttpGet("https://gitlab.com/upio/cobalt/-/releases/permalink/latest/downloads/Cobalt.luau")
+            local compiled = loadstring(source)
+            if not compiled then error("Could not compile downloaded source") end
+            compiled()
+        end)
+        if ok then notify("Cobalt", "Loaded") else notify("Cobalt", "Failed: " .. tostring(err)) end
+    end,
+})
+
+local AdminInfo = Instance.new("TextLabel")
+AdminInfo.Size = UDim2.new(1, -20, 0, 55)
+AdminInfo.Position = UDim2.new(0, 10, 0, 12)
+AdminInfo.BackgroundTransparency = 1
+AdminInfo.Text = "Admin panel 0.9\nНажми кнопку ниже, чтобы открыть отдельное окно."
+AdminInfo.TextColor3 = Color3.fromRGB(0, 0, 0)
+AdminInfo.Font = Enum.Font.Code
+AdminInfo.TextSize = 13
+AdminInfo.TextWrapped = true
+AdminInfo.TextXAlignment = Enum.TextXAlignment.Left
+AdminInfo.Parent = AdminPage
+
+local LaunchAdminButton = Instance.new("TextButton")
+LaunchAdminButton.Size = UDim2.new(1, -20, 0, 40)
+LaunchAdminButton.Position = UDim2.new(0, 10, 0, 78)
+LaunchAdminButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+LaunchAdminButton.Text = "LAUNCH ADMIN PANEL 0.9"
+LaunchAdminButton.TextColor3 = Color3.fromRGB(0, 255, 0)
+LaunchAdminButton.Font = Enum.Font.Code
+LaunchAdminButton.TextSize = 14
+LaunchAdminButton.BorderSizePixel = 1
+LaunchAdminButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
+LaunchAdminButton.Parent = AdminPage
+LaunchAdminButton.MouseButton1Click:Connect(function()
+    local ok, err = pcall(initAdminPanel)
+    if not ok then warn("Admin panel failed to open: " .. tostring(err)) end
+end)
+
+-- Top-level tab actions
+ExecutorTab.MouseButton1Click:Connect(function()
+    selectTopTab("executor")
+end)
+BlackTab.MouseButton1Click:Connect(function()
+    selectTopTab("black")
+    ScannerGui.Enabled = true
+end)
+AdminTab.MouseButton1Click:Connect(function()
+    selectTopTab("admin")
+end)
+
+notify("SimpleExecutor", "Loaded")
